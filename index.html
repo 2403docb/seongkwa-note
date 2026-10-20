@@ -545,6 +545,9 @@ details[open] summary .count::after { content: " 접기" }
 :root[data-theme="dark"] .cm-grid .c.l1, :root[data-theme="dark"] .cm-grid .c.l2,
 :root:not([data-theme="light"]) .cm-grid .c.l1, :root:not([data-theme="light"]) .cm-grid .c.l2 { background: var(--cc) !important }
 .chart .axis.sub { font-size: 13px }
+
+/* today: only the date under the seal header, no sentence below it */
+#msg[hidden] { display: none }
 </style>
 <style>
 /* home-screen app: keep content clear of the notch, and stop iOS from zooming or bouncing text */
@@ -569,7 +572,7 @@ input { font-size: max(16px, 1em) }
       <div class="big-seal" id="bigSeal" aria-hidden="true"><b id="bigNum">0</b><small id="sealLabel">오늘 도장</small></div>
       <div>
         <h1><button type="button" class="date-btn" id="dateBtn" aria-haspopup="dialog"><span id="dateTitle">10월 20일 화요일</span><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg></button></h1>
-        <p class="msg" id="msg"></p>
+        <p class="msg" id="msg" hidden></p>
       </div>
     </div>
     <div class="week" id="week" aria-label="이번 주 도장"></div>
