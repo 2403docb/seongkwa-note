@@ -27,7 +27,7 @@
   --ink: #233A9E;        /* 청색 볼펜 */
   --seal: #C62828;       /* 인주 */
   --graphite: #2F3336;
-  --muted: #6B736B;
+  --muted: #636B63;
   --line: #CCD7CF;
   --seal-soft: rgba(198, 40, 40, .08);
   --ink-soft: rgba(35, 58, 158, .08);
@@ -270,7 +270,7 @@ button.day:disabled { cursor: default }
 .backup-row .opt { font-size: var(--step-0); padding: 14px 6px; color: var(--ink); font-weight: 600 }
 #backupMsg:empty { display: none }
 /* room to scroll the last category up above the keyboard */
-body.typing { padding-bottom: 70vh }
+body.typing { padding-bottom: 60svh }
 .heat-opt {
   display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--sheet);
   cursor: pointer; text-align: left; transition: border-color 150ms ease, transform 120ms var(--ease-out);
@@ -384,6 +384,25 @@ details[open] summary .count::after { content: " 접기" }
   .big-seal b { font-size: 2.25rem }
   .day .s { width: 30px }
 }
+
+/* touch targets: every tap area is at least 44px, mostly by growing an invisible hit box so the page keeps its look */
+.plus::after { inset: -15px }
+.cat-toggle { width: 36px; height: 44px }
+.cat-title { min-height: 44px }
+.new-cat-btn, .del, .seg button, .month-nav button, .sw { position: relative }
+.new-cat-btn::after, .del::after { content: ""; position: absolute; inset: -7px 0 }
+.seg button::after { content: ""; position: absolute; inset: -9px 0 }
+.month-nav button { width: 38px; height: 38px }
+.month-nav button::after { content: ""; position: absolute; inset: -4px }
+.cat-toggle { width: 44px; margin-left: -8px }
+.week { gap: 0 }
+.day-btn, .cat-add .btn { height: 44px }
+.swatches { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 12px }
+.sw { max-width: 40px }
+.sw::after { content: ""; position: absolute; inset: -4px }
+/* nothing smaller than 12px */
+.big-seal small, .heat .ml, .heat .dl { font-size: .75rem }
+.chart .axis { font-size: 12px }
 </style>
 <style>
 /* home-screen app: keep content clear of the notch, and stop iOS from zooming or bouncing text */
@@ -1225,20 +1244,24 @@ input { font-size: max(16px, 1em) }
   });
   applySettings();
 
-  // iPhone keyboard covers the lower half: once it has finished sliding up, move the open box
-  // to the middle of what is still visible, in one motion (repeated nudges made the page bounce)
+  // iPhone keyboard covers the lower half: once it has finished sliding up, move the open box to the
+  // middle of what is still visible. Only once per tap, and only when it is hidden: iOS scrolls the
+  // focused field into view on its own, and answering every one of its scrolls made the page ping-pong.
   const vv = window.visualViewport;
   const openBox = () => document.querySelector("#cats .cat-add, #catForm:not([hidden])");
   function centerBox(box) {
     const h = vv ? vv.height : innerHeight, top = vv ? vv.offsetTop : 0;
     const r = box.getBoundingClientRect();
+    if (r.top >= top + 8 && r.bottom <= top + h - 8) return;
     const delta = r.height > h - 24 ? r.top - top - 12 : r.top + r.height / 2 - top - h / 2;
-    if (Math.abs(delta) > 4) scrollBy({ top: delta, behavior: "auto" });
+    scrollBy({ top: delta, behavior: "auto" });
   }
-  let centerTimer = 0;
+  let centerTimer = 0, focusAt = 0, centered = true;
   function centerSoon(wait) {
+    if (centered || Date.now() - focusAt > 1500) return;
     clearTimeout(centerTimer);
     centerTimer = setTimeout(() => {
+      centered = true;
       const a = document.activeElement, box = a && a.closest && a.closest(".cat-add, .newcat");
       if (box && a instanceof HTMLInputElement) centerBox(box);
     }, wait);
@@ -1249,7 +1272,8 @@ input { font-size: max(16px, 1em) }
     const inp = ev.target;
     if (!(inp instanceof HTMLInputElement) || inp.type === "file" || !inp.closest(".cat-add, .newcat")) return;
     syncTyping();
-    centerSoon(450);   // keyboard already up, or no resize event: center after it would have settled
+    focusAt = Date.now(); centered = false;
+    centerSoon(500);   // keyboard already up, or no resize event: center after it would have settled
   });
   if (vv) vv.addEventListener("resize", () => centerSoon(120));
   new MutationObserver(syncTyping).observe($("cats"), { childList: true });
