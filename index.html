@@ -281,6 +281,7 @@ body.typing { padding-bottom: 60svh }
 .heat-opt[aria-checked="true"] .name { font-weight: 600; color: var(--ink) }
 .heat-opt .ramp { display: flex; gap: 3px }
 .heat-opt .ramp i { width: 13px; height: 13px; border-radius: 3px }
+.heat-opt .ramp.dots i { border-radius: 50% }
 .swatches { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; justify-items: center }
 .sw {
   width: 100%; max-width: 30px; aspect-ratio: 1; height: auto; border-radius: 50%; border: 0; cursor: pointer; padding: 0; position: relative;
@@ -403,6 +404,15 @@ details[open] summary .count::after { content: " 접기" }
 /* nothing smaller than 12px */
 .big-seal small, .heat .ml, .heat .dl { font-size: .75rem }
 .chart .axis { font-size: 12px }
+
+/* category color themes (settings tab). Order chosen so neighbouring categories stay easy to tell apart. */
+:root[data-palette="vintage"] { --c1: #2f5d7c; --c2: #8a6d3b; --c3: #e08a5a; --c4: #a8432f; --c5: #7c9a6a; --c6: #6e4a6e; --c7: #d4a23a; --c8: #3f8a86 }
+@media (prefers-color-scheme: dark) { :root[data-palette="vintage"]:not([data-theme="light"]) { --c1: #5f8fb3; --c2: #a3804a; --c3: #eba06f; --c4: #c8604a; --c5: #93b17f; --c6: #a07aa0; --c7: #e0b357; --c8: #5aa8a3 } }
+:root[data-theme="dark"][data-palette="vintage"] { --c1: #5f8fb3; --c2: #a3804a; --c3: #eba06f; --c4: #c8604a; --c5: #93b17f; --c6: #a07aa0; --c7: #e0b357; --c8: #5aa8a3 }
+:root[data-palette="pastel"] { --c1: #7fb2f0; --c2: #ff9f7a; --c3: #6fd1a8; --c4: #f7cc5c; --c5: #f59ac0; --c6: #a3d46f; --c7: #b39af0; --c8: #c9a27e }
+@media (prefers-color-scheme: dark) { :root[data-palette="pastel"]:not([data-theme="light"]) { --c1: #7fb2f0; --c2: #ff9f7a; --c3: #6fd1a8; --c4: #f7cc5c; --c5: #f59ac0; --c6: #a3d46f; --c7: #b39af0; --c8: #c9a27e } }
+:root[data-theme="dark"][data-palette="pastel"] { --c1: #7fb2f0; --c2: #ff9f7a; --c3: #6fd1a8; --c4: #f7cc5c; --c5: #f59ac0; --c6: #a3d46f; --c7: #b39af0; --c8: #c9a27e }
+.chart .val { font-size: 15px; font-weight: 700 }
 </style>
 <style>
 /* home-screen app: keep content clear of the notch, and stop iOS from zooming or bouncing text */
@@ -499,6 +509,10 @@ input { font-size: max(16px, 1em) }
         <button type="button" class="opt" role="radio" data-theme-opt="light" aria-checked="false"><span class="opt-prev lt" aria-hidden="true"></span>화이트 모드</button>
         <button type="button" class="opt" role="radio" data-theme-opt="dark" aria-checked="false"><span class="opt-prev dk" aria-hidden="true"></span>다크 모드</button>
       </div>
+    </section>
+    <section class="page" aria-labelledby="t-pal">
+      <h2 id="t-pal">카테고리 색상</h2>
+      <div class="opt-list" id="palOpts" role="radiogroup" aria-labelledby="t-pal"></div>
     </section>
     <section class="page" aria-labelledby="t-heatc">
       <h2 id="t-heatc">1년 기록 색상</h2>
@@ -708,7 +722,7 @@ input { font-size: max(16px, 1em) }
   function catForm(c) {
     const f = document.createElement("form");
     f.className = "cat-add cat-edit"; f.autocomplete = "off"; f.dataset.mode = "cat"; f.dataset.cat = c.id;
-    const names = ["파랑", "주황", "청록", "노랑", "분홍", "초록", "보라", "빨강"];
+    const names = [1, 2, 3, 4, 5, 6, 7, 8].map(n => `색 ${n}`);
     const sw = names.map((nm, i) => `<button type="button" class="sw" role="radio" data-color="${i}" aria-checked="${c.color % 8 === i}" aria-label="${nm}" style="background:var(--c${i + 1})"></button>`).join("");
     f.innerHTML = `<input maxlength="20" aria-label="카테고리 이름"><span class="sw-label" id="swl-${c.id}">색상</span>
       <div class="swatches" role="radiogroup" aria-labelledby="swl-${c.id}">${sw}</div><div class="cat-edit-actions">
@@ -1013,13 +1027,21 @@ input { font-size: max(16px, 1em) }
   }
 
   const charts = {};
+  let resizeFrame = 0;
   function setupChart(key) {
     const el = document.querySelector(`[data-chart="${key}"]`);
     const c = { key, el, box: el.querySelector(".chart"), svg: el.querySelector("svg"), tip: el.querySelector(".tip"), table: el.querySelector("table"), legend: el.querySelector(".legend-row"), lastKey: null, w: 0 };
     c.svg.addEventListener("pointermove", ev => { const h = ev.target.closest(".hit"); h ? showTip(c, +h.dataset.i) : hideTip(c); });
     c.svg.addEventListener("click", ev => { const h = ev.target.closest(".hit"); if (h) showTip(c, +h.dataset.i); });
     c.svg.addEventListener("pointerleave", ev => { if (ev.pointerType === "mouse") hideTip(c); });
-    new ResizeObserver(() => { const w = c.box.clientWidth; if (w && w !== c.w) { c.w = w; renderChart(); } }).observe(c.box);
+    // redraw on the next frame, not inside the observer: drawing changes the card's height, which made the
+    // observer fire again in the same pass ("ResizeObserver loop completed with undelivered notifications")
+    new ResizeObserver(() => {
+      const w = c.box.clientWidth;
+      if (!w || w === c.w) return;
+      c.w = w;
+      cancelAnimationFrame(resizeFrame); resizeFrame = requestAnimationFrame(renderChart);
+    }).observe(c.box);
     charts[key] = c;
   }
 
@@ -1228,7 +1250,22 @@ input { font-size: max(16px, 1em) }
     if (h.v) root.style.setProperty("--heat", h.v); else root.style.removeProperty("--heat");
     document.querySelectorAll("[data-theme-opt]").forEach(b => b.setAttribute("aria-checked", String(b.dataset.themeOpt === st.theme)));
     document.querySelectorAll("[data-heat]").forEach(b => b.setAttribute("aria-checked", String(b.dataset.heat === h.id)));
+    const pal = PALETTES.find(x => x.id === st.palette) || PALETTES[0];
+    if (pal.id === "basic") delete root.dataset.palette; else root.dataset.palette = pal.id;
+    document.querySelectorAll("[data-pal]").forEach(b => b.setAttribute("aria-checked", String(b.dataset.pal === pal.id)));
   }
+  const PALETTES = [
+    { id: "basic", name: "기본", c: ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"] },
+    { id: "vintage", name: "빈티지", c: ["#2f5d7c", "#8a6d3b", "#e08a5a", "#a8432f", "#7c9a6a", "#6e4a6e", "#d4a23a", "#3f8a86"] },
+    { id: "pastel", name: "파스텔", c: ["#7fb2f0", "#ff9f7a", "#6fd1a8", "#f7cc5c", "#f59ac0", "#a3d46f", "#b39af0", "#c9a27e"] }
+  ];
+  $("palOpts").innerHTML = PALETTES.map(pl =>
+    `<button type="button" class="heat-opt" role="radio" data-pal="${pl.id}" aria-checked="false"><span class="name">${pl.name}</span><span class="ramp dots" aria-hidden="true">${pl.c.map(c => `<i style="background:${c}"></i>`).join("")}</span></button>`
+  ).join("");
+  $("palOpts").addEventListener("click", ev => {
+    const b = ev.target.closest("[data-pal]"); if (!b) return;
+    state.settings.palette = b.dataset.pal; save(); applySettings();
+  });
   $("heatOpts").innerHTML = HEATS.map(h => {
     const c = h.v || "var(--seal)";
     const ramp = [28, 52, 76].map(p => `<i style="background:color-mix(in oklab, ${c} ${p}%, var(--sheet))"></i>`).join("") + `<i style="background:${c}"></i>`;
