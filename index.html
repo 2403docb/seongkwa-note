@@ -269,6 +269,8 @@ button.day:disabled { cursor: default }
 .backup-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px }
 .backup-row .opt { font-size: var(--step-0); padding: 14px 6px; color: var(--ink); font-weight: 600 }
 #backupMsg:empty { display: none }
+/* room to scroll the last category up above the keyboard */
+body.typing { padding-bottom: 70vh }
 .heat-opt {
   display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--sheet);
   cursor: pointer; text-align: left; transition: border-color 150ms ease, transform 120ms var(--ease-out);
@@ -1229,6 +1231,36 @@ input { font-size: max(16px, 1em) }
     state.settings.heat = b.dataset.heat; save(); applySettings();
   });
   applySettings();
+
+  // iPhone keyboard covers the lower half: while typing, move the open box to the middle of what is still visible
+  function centerBox(box) {
+    const vv = window.visualViewport;
+    const h = vv ? vv.height : innerHeight, top = vv ? vv.offsetTop : 0;
+    const r = box.getBoundingClientRect();
+    const delta = r.height > h - 24 ? r.top - top - 12 : r.top + r.height / 2 - top - h / 2;
+    if (Math.abs(delta) > 4) scrollBy({ top: delta, behavior: reduce() ? "auto" : "smooth" });
+  }
+  document.addEventListener("focusin", ev => {
+    const inp = ev.target;
+    if (!(inp instanceof HTMLInputElement) || inp.type === "file") return;
+    const box = inp.closest(".cat-add, .newcat"); if (!box) return;
+    document.body.classList.add("typing");
+    let n = 0, last = -1;
+    const vv = window.visualViewport;
+    // the keyboard slides up over ~300ms; re-center until the visible height stops changing
+    const tick = () => {
+      if (document.activeElement !== inp || !box.isConnected) return;
+      const h = vv ? vv.height : innerHeight;
+      if (h !== last || n < 2) centerBox(box);
+      last = h;
+      if (++n < 8) setTimeout(tick, 120);
+    };
+    setTimeout(tick, 60);
+  });
+  document.addEventListener("focusout", () => setTimeout(() => {
+    const a = document.activeElement;
+    if (!(a && a.closest && a.closest(".cat-add, .newcat"))) document.body.classList.remove("typing");
+  }, 100));
 
   // backup: the file is the whole state, so importing simply replaces it and reloads (load-time migration then runs on it)
   const backupMsg = t => { $("backupMsg").textContent = t; };
