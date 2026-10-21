@@ -548,6 +548,11 @@ details[open] summary .count::after { content: " 접기" }
 
 /* today: only the date under the seal header, no sentence below it */
 #msg[hidden] { display: none }
+
+/* narrow Android phones (360px and below): keep the card titles and the month label on one line each */
+.list-head h2, .month-pick span { white-space: nowrap }
+.list-head:has(.month-nav) { align-items: center }
+@media (max-width: 380px) { .month-nav .month-pick { font-size: .9375rem; padding-left: 4px } .list-head h2 { font-size: 1.0625rem } }
 </style>
 <style>
 /* home-screen app: keep content clear of the notch, and stop iOS from zooming or bouncing text */
